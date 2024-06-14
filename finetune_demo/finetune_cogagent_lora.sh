@@ -1,9 +1,14 @@
 #! /bin/bash
-# export PATH=/usr/local/cuda/bin:$PATH
-# export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+export CUDA_HOME=/usr/local/cuda
+export PATH=$CUDA_HOME/bin:$PATH
+export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
+export CXX=g++
 
-NUM_GPUS_PER_WORKER=8
-MP_SIZE=1
+NUM_GPUS_PER_WORKER=2
+MP_SIZE=2
+
+eval "$(conda shell.bash hook)"
+conda activate vlm
 
 script_path=$(realpath $0)
 script_dir=$(dirname $script_path)
@@ -12,13 +17,13 @@ MODEL_TYPE="cogagent-chat"
 VERSION="chat"
 MODEL_ARGS="--from_pretrained $MODEL_TYPE \
     --max_length 400 \
-    --lora_rank 50 \
+    --lora_rank 40 \
     --use_lora \
     --local_tokenizer lmsys/vicuna-7b-v1.5 \
     --version $VERSION"
 # TIPS: max_length include low-resolution image sequence (which has 256 tokens) 
 
-OPTIONS_SAT="SAT_HOME=~/.sat_models"
+OPTIONS_SAT="SAT_HOME=/scratch/wang7776/.sat_models"
 OPTIONS_NCCL="NCCL_DEBUG=info NCCL_IB_DISABLE=0 NCCL_NET_GDR_LEVEL=2 LOCAL_WORLD_SIZE=$NUM_GPUS_PER_WORKER"
 HOST_FILE_PATH="hostfile"
 
@@ -29,7 +34,7 @@ gpt_options=" \
        --experiment-name finetune-$MODEL_TYPE \
        --model-parallel-size ${MP_SIZE} \
        --mode finetune \
-       --train-iters 2000 \
+       --train-iters 500 \
        --resume-dataloader \
        $MODEL_ARGS \
        --train-data ${train_data} \
@@ -41,7 +46,7 @@ gpt_options=" \
        --vit_checkpoint_activations \
        --save-interval 200 \
        --eval-interval 200 \
-       --save "./checkpoints" \
+       --save "/scratch/wang7776/test_finetune/checkpoints" \
        --eval-iters 10 \
        --eval-batch-size 1 \
        --split 1. \

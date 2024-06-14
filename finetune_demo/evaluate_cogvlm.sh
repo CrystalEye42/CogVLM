@@ -19,7 +19,7 @@ MODEL_ARGS="--from_pretrained ./checkpoints/merged_lora_490 \
 # Tips: If training models of resolution 244, you can set --max_length smaller 
 
 
-OPTIONS_SAT="SAT_HOME=~/.sat_models"
+OPTIONS_SAT="SAT_HOME=/scratch/wang7776/.sat_models"
 OPTIONS_NCCL="NCCL_DEBUG=info NCCL_IB_DISABLE=0 NCCL_NET_GDR_LEVEL=2 LOCAL_WORLD_SIZE=$NUM_GPUS_PER_WORKER"
 HOST_FILE_PATH="hostfile"
 

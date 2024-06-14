@@ -13,14 +13,16 @@ from utils.utils import llama2_text_processor, llama2_text_processor_inference, 
 
 def disable_untrainable_params(self):
     total_trainable = 0
+    total = 0
     # enable = ['vit']
-    enable = ["encoder", "cross_attention", "linear_proj", 'mlp.vision', 'rotary.vision', 'eoi', 'boi', 'vit']
+    enable = [] # ["encoder", "cross_attention", "linear_proj", 'mlp.vision', 'rotary.vision', 'eoi', 'boi', 'vit']
     if self.args.use_ptuning:
         enable.extend(['ptuning'])
     if self.args.use_lora or self.args.use_qlora:
         enable.extend(['matrix_A', 'matrix_B'])
     for n, p in self.named_parameters():
         flag = False
+        total += p.numel()
         for e in enable:
             if type(e) is tuple:
                 if e[0].lower() in n.lower() and e[1].lower() in n.lower() and 55 > int(n[:n.find('.mlp')].split('.')[-1]) > 45:
@@ -38,6 +40,7 @@ def disable_untrainable_params(self):
                 p.lr_scale = 0.1
             print_rank0(n)
     print_rank0("***** Total trainable parameters: "+str(total_trainable)+" *****")
+    print_rank0("***** Total parameters: "+str(total)+" *****")
 
 FineTuneTrainCogAgentModel.disable_untrainable_params = disable_untrainable_params
 
@@ -259,8 +262,8 @@ if __name__ == '__main__':
     known, args_list = py_parser.parse_known_args()
     args = get_args(args_list)
     args = argparse.Namespace(**vars(args), **vars(known))
-    if args.use_qlora:
-        args.device = 'cpu'
+    #if args.use_qlora:
+    #    args.device = 'cpu'
 
     model, args = FineTuneTrainCogAgentModel.from_pretrained(args.from_pretrained, args, overwrite_args={'model_parallel_size': args.model_parallel_size} if args.model_parallel_size != 1 else {})
     if args.use_ptuning: # TODO: wait for SAT updating
@@ -271,6 +274,7 @@ if __name__ == '__main__':
         model.get_mixin("eva").vit_model.add_mixin("lora", LoraMixin(args.eva_args['num_layers'], args.lora_rank, layer_range=args.layer_range), reinit=True)
     elif args.use_qlora:
         model.add_mixin("lora", LoraMixin(args.num_layers, args.lora_rank, layer_range=args.layer_range, qlora=True), reinit=True)
+        model.get_mixin("eva").vit_model.add_mixin("lora", LoraMixin(args.eva_args['num_layers'], args.lora_rank, layer_range=args.layer_range, qlora=True), reinit=True)
         
     if args.use_qlora and torch.cuda.is_available():
         model = model.to('cuda')

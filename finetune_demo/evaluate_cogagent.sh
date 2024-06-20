@@ -11,7 +11,7 @@ main_dir=$(dirname $script_dir)
 MODEL_TYPE="cogagent-chat"
 VERSION="chat"
 # Tips: max_length should be longer than 256, to accomodate low-resolution image tokens
-MODEL_ARGS="--from_pretrained ./checkpoints/ft_cogagent_model \
+MODEL_ARGS="--from_pretrained ./checkpoints/merged_lora_cogagent/1 \
     --max_length 400 \
     --local_tokenizer lmsys/vicuna-7b-v1.5 \
     --version $VERSION"

@@ -4,8 +4,8 @@ export PATH=$CUDA_HOME/bin:$PATH
 export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
 export CXX=g++
 
-NUM_GPUS_PER_WORKER=2
-MP_SIZE=2
+NUM_GPUS_PER_WORKER=4
+MP_SIZE=1
 
 eval "$(conda shell.bash hook)"
 conda activate vlm
@@ -34,7 +34,7 @@ gpt_options=" \
        --experiment-name finetune-$MODEL_TYPE \
        --model-parallel-size ${MP_SIZE} \
        --mode finetune \
-       --train-iters 500 \
+       --train-iters 5000 \
        --resume-dataloader \
        $MODEL_ARGS \
        --train-data ${train_data} \

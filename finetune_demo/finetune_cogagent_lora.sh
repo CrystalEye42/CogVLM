@@ -16,7 +16,7 @@ main_dir=$(dirname $script_dir)
 MODEL_TYPE="cogagent-chat"
 VERSION="chat"
 MODEL_ARGS="--from_pretrained $MODEL_TYPE \
-    --max_length 320 \
+    --max_length 360 \
     --lora_rank 80 \
     --use_lora \
     --local_tokenizer lmsys/vicuna-7b-v1.5 \
@@ -34,7 +34,7 @@ gpt_options=" \
        --experiment-name finetune-$MODEL_TYPE \
        --model-parallel-size ${MP_SIZE} \
        --mode finetune \
-       --train-iters 5000 \
+       --train-iters 20000 \
        --resume-dataloader \
        $MODEL_ARGS \
        --train-data ${train_data} \

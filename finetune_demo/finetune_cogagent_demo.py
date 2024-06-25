@@ -228,7 +228,7 @@ def forward_step(data_iterator, model, args, timers):
     timers('batch generator').start()
     data_b = get_batch(
         data_iterator, args, timers)
-    labels = data_b.pop('labels')
+    labels = data_b.pop('labels') # shape: batch size x seq length
     timers('batch generator').stop()
     logits = model(**data_b)[0]
     lm_logits = logits.to(torch.float32)

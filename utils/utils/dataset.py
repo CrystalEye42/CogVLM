@@ -56,9 +56,9 @@ class ItemDataset(Dataset):
         for rxn in data['reactions']:
             curr = {}
             for k, v in rxn.items():
-                curr[k] = [bboxes[i] for i in v]
+                curr[k] = [[bboxes[i]] for i in v]
             result.append(curr)
-        data['label'] = json.dumps(result)
+        data['label'] = result
         
     
     def __len__(self):
@@ -75,9 +75,11 @@ class ItemDataset(Dataset):
         img_dict = self.process_img(img)
         # text
         label = data['label']
+        random.shuffle(label)
+        label = str(label)
         uni_key = label
         text_dict = self.process_text(label, 
-            "Describe all reactions in the form [{'reactants': [ [[x1,y1,x2,y2]] , ... ], 'conditions': [ [[x1,y1,x2,y2]] , ... ]}, 'products': [ [[x1,y1,x2,y2]] , ... ]}, ... ]")
+            "Describe all reactions in the form [{'reactants': [[[x1,y1,x2,y2]] , ... ], 'conditions': [[[x1,y1,x2,y2]] , ... ]}, 'products': [[[x1,y1,x2,y2]] , ... ]}, ... ]")
         if text_dict is None:
             print_rank0(f"Process text failed. Please check the max_target_length & max_source_length.\n The data is {data}", level=logging.WARNING)
             return {}

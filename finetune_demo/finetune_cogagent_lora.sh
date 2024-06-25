@@ -16,8 +16,8 @@ main_dir=$(dirname $script_dir)
 MODEL_TYPE="cogagent-chat"
 VERSION="chat"
 MODEL_ARGS="--from_pretrained $MODEL_TYPE \
-    --max_length 400 \
-    --lora_rank 40 \
+    --max_length 320 \
+    --lora_rank 80 \
     --use_lora \
     --local_tokenizer lmsys/vicuna-7b-v1.5 \
     --version $VERSION"
@@ -27,8 +27,8 @@ OPTIONS_SAT="SAT_HOME=/scratch/wang7776/.sat_models"
 OPTIONS_NCCL="NCCL_DEBUG=info NCCL_IB_DISABLE=0 NCCL_NET_GDR_LEVEL=2 LOCAL_WORLD_SIZE=$NUM_GPUS_PER_WORKER"
 HOST_FILE_PATH="hostfile"
 
-train_data="./archive_split/train"
-valid_data="./archive_split/valid"
+train_data="/data/rsg/chemistry/wang7776/images/train"
+valid_data="/data/rsg/chemistry/wang7776/images/dev"
 
 gpt_options=" \
        --experiment-name finetune-$MODEL_TYPE \

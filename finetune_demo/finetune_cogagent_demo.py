@@ -178,6 +178,13 @@ def forward_step_eval(data_iterator, model, args, timers):
         for pred, label in zip(decoded_preds, decoded_labels):
             if args.rank == 0:
                 print('pred', pred, 'label', label, flush=True)
+                """
+                print_rank0('----------------------')
+                print_rank0(pred)
+                print_rank0('-------- label:')
+                print_rank0(label)
+                print_rank0('----------------------')
+                """
             if pred == label:
                 score_dict['acc'].append(1.)
             else:
@@ -229,6 +236,14 @@ def forward_step(data_iterator, model, args, timers):
     data_b = get_batch(
         data_iterator, args, timers)
     labels = data_b.pop('labels') # shape: batch size x seq length
+    """
+    _labels = labels.cpu()
+    _labels = np.where(_labels != -100, _labels, tokenizer.pad_token_id)
+    decoded_labels = tokenizer.batch_decode(_labels, skip_special_tokens=True)
+    print_rank0('-------')
+    print_rank0(_labels[0])
+    print_rank0(decoded_labels)
+    """
     timers('batch generator').stop()
     logits = model(**data_b)[0]
     lm_logits = logits.to(torch.float32)

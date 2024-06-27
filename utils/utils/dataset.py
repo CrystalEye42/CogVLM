@@ -8,6 +8,7 @@ from torch.utils.data import Dataset
 from sat.helpers import print_rank0
 import glob
 import json
+import torch
 
 def find_all_files(path, suffix=".jpg"):
     target_files = []
@@ -79,7 +80,7 @@ class ItemDataset(Dataset):
         label = str(label)
         uni_key = label
         text_dict = self.process_text(label, 
-            "Describe all reactions in the form [{'reactants': [[[x1,y1,x2,y2]] , ... ], 'conditions': [[[x1,y1,x2,y2]] , ... ]}, 'products': [[[x1,y1,x2,y2]] , ... ]}, ... ]")
+            "Describe all reactions in the form [{'reactants': [[[x1,y1,x2,y2]], ... ], 'conditions': [[[x1,y1,x2,y2]], ... ]}, 'products': [[[x1,y1,x2,y2]], ... ]}, ... ]")
         if text_dict is None:
             print_rank0(f"Process text failed. Please check the max_target_length & max_source_length.\n The data is {data}", level=logging.WARNING)
             return {}

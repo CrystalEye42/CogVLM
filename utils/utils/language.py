@@ -80,6 +80,8 @@ class llama2_text_processor:
 
         if len(input_ids) > self.max_target_length - self.image_length - 5:
             input_ids = input_ids[:self.max_target_length - self.image_length - 5]
+            print("----------------------\nALERT\n-------------------------", flush=True)
+            print(caption, flush=True)
 
         input_ids += [self.tokenizer.eos_token_id]
 

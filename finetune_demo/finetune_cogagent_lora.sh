@@ -16,8 +16,8 @@ main_dir=$(dirname $script_dir)
 MODEL_TYPE="cogagent-chat"
 VERSION="chat"
 MODEL_ARGS="--from_pretrained $MODEL_TYPE \
-    --max_length 360 \
-    --lora_rank 80 \
+    --max_length 1920 \
+    --lora_rank 64 \
     --use_lora \
     --local_tokenizer lmsys/vicuna-7b-v1.5 \
     --version $VERSION"
@@ -44,7 +44,7 @@ gpt_options=" \
        --warmup .02 \
        --checkpoint-activations \
        --vit_checkpoint_activations \
-       --save-interval 200 \
+       --save-interval 5000 \
        --eval-interval 200 \
        --save "/scratch/wang7776/test_finetune/checkpoints" \
        --eval-iters 10 \
@@ -57,7 +57,7 @@ gpt_options=" \
 
               
 
-run_cmd="${OPTIONS_NCCL} ${OPTIONS_SAT} deepspeed --master_port 16666 --hostfile ${HOST_FILE_PATH} finetune_cogagent_demo.py ${gpt_options}"
+run_cmd="${OPTIONS_NCCL} ${OPTIONS_SAT} deepspeed --master_port 16667 --hostfile ${HOST_FILE_PATH} finetune_cogagent_demo.py ${gpt_options}"
 echo ${run_cmd}
 eval ${run_cmd}
 

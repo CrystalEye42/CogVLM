@@ -76,7 +76,7 @@ class ItemDataset(Dataset):
         img_dict = self.process_img(img)
         # text
         label = data['label']
-        random.shuffle(label)
+        #random.shuffle(label)
         label = str(label)
         uni_key = label
         text_dict = self.process_text(label, 

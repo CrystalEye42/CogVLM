@@ -159,11 +159,8 @@ def chat(model, tokenizer, tokens,
     return output
 
 def rxnscribe_eval(pred, label):
-    try:
-        pred = eval(pred)
-        tar = eval(label)
-    except:
-        return 0
+    pred = eval(pred)
+    tar = eval(label)
     def get_iou(bb1, bb2):
         bb1 = bb1[0]
         bb2 = bb2[0]
@@ -171,7 +168,7 @@ def rxnscribe_eval(pred, label):
         def get_area(bbox):
             return max(0, bbox[2] - bbox[0] + 1) * max(0, bbox[3] - bbox[1] + 1)
         inter_area = get_area(bb_intersect)
-        return inter_area / (get_area(bb1) + get_area(bb2) + inter_area)
+        return inter_area / (get_area(bb1) + get_area(bb2) - inter_area)
 
     def match_bbox(bbox, rxn, keys):
         max_iou = 0
@@ -189,7 +186,7 @@ def rxnscribe_eval(pred, label):
     soft_keys = {'reactants': ['reactants', 'conditions'], 'conditions': ['reactants', 'conditions'], 'products': ['products']}
     for rxn in pred:
         # soft match
-        for k, v in rxn:
+        for k, v in rxn.items():
             soft_flag = True
             hard_flag = True
             for bbox in v:
@@ -205,7 +202,7 @@ def rxnscribe_eval(pred, label):
             hard_matched['prec'] += 1
     for rxn in tar:
         # soft match
-        for k, v in rxn:
+        for k, v in rxn.items():
             soft_flag = True
             hard_flag = True
             for bbox in v:
@@ -219,7 +216,9 @@ def rxnscribe_eval(pred, label):
             soft_matched['rec'] += 1
         if hard_flag:
             hard_matched['rec'] += 1
-    return soft_matched, hard_matched
+    prec_total = len(pred)
+    rec_total = len(tar)
+    return soft_matched, hard_matched, prec_total, rec_total
 
 
 def forward_step_eval(data_iterator, model, args, timers):
@@ -235,8 +234,12 @@ def forward_step_eval(data_iterator, model, args, timers):
         decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
         score_dict = {
-            "acc": [],
-            "acc_w/o_case": [],
+            "soft_pred_hits": 0,
+            "soft_gold_hits": 0,
+            "hard_pred_hits": 0,
+            "hard_gold_hits": 0,
+            "pred_total": 0,
+            "gold_total": 0
         }
         for pred, label in zip(decoded_preds, decoded_labels):
             if args.rank == 0:
@@ -248,19 +251,26 @@ def forward_step_eval(data_iterator, model, args, timers):
                 print_rank0(label)
                 print_rank0('----------------------')
                 """
-            if pred == label:
-                score_dict['acc'].append(1.)
-            else:
-                score_dict['acc'].append(0.)
-            if pred.lower() == label.lower():
-                score_dict['acc_w/o_case'].append(1.)
-            else:
-                score_dict['acc_w/o_case'].append(0.)
-            
+            try:
+                soft_matched, hard_matched, prec_total, rec_total = rxnscribe_eval(pred, label)
+            except:
+                soft_matched, hard_matched = {'prec': 0, 'rec': 0}, {'prec': 0, 'rec': 0}
+                prec_total, rec_total = 10, 10  # arbitrary, weight large to penalize
+            score_dict['soft_pred_hits'] += soft_matched['prec']
+            score_dict['soft_gold_hits'] += soft_matched['rec']
+            score_dict['hard_pred_hits'] += hard_matched['prec']
+            score_dict['hard_gold_hits'] += hard_matched['rec']
+            score_dict['pred_total'] += prec_total
+            score_dict['gold_total'] += rec_total
 
-        for k, v in score_dict.items():
-            score_dict[k] = float(np.mean(v))
-        return score_dict
+        result = {'soft_precision': score_dict['soft_pred_hits'] / score_dict['pred_total'] , 
+                  'soft_recall': score_dict['soft_gold_hits'] / score_dict['gold_total'] , 
+                  'hard_precision': score_dict['hard_pred_hits'] / score_dict['pred_total'] , 
+                  'hard_recall': score_dict['hard_gold_hits'] / score_dict['gold_total'] , 
+                  }
+        result['soft_f1'] = 2 * result['soft_precision'] * result['soft_recall'] / (result['soft_precision'] + result['soft_recall'] + 0.00001)
+        result['hard_f1'] = 2 * result['hard_precision'] * result['hard_recall'] / (result['hard_precision'] + result['hard_recall'] + 0.00001)
+        return result
 
     # Get the batch.
     timers('batch generator').start()

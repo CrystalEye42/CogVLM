@@ -31,10 +31,10 @@ train_data="/data/rsg/chemistry/wang7776/images/train"
 valid_data="/data/rsg/chemistry/wang7776/images/dev"
 
 gpt_options=" \
-       --experiment-name finetune-$MODEL_TYPE \
+       --experiment-name rxnscribe \
        --model-parallel-size ${MP_SIZE} \
        --mode finetune \
-       --train-iters 20000 \
+       --train-iters 10000 \
        --resume-dataloader \
        $MODEL_ARGS \
        --train-data ${train_data} \
@@ -44,10 +44,10 @@ gpt_options=" \
        --warmup .02 \
        --checkpoint-activations \
        --vit_checkpoint_activations \
-       --save-interval 5000 \
-       --eval-interval 200 \
+       --save-interval 2500 \
+       --eval-interval 500 \
        --save "/scratch/wang7776/test_finetune/checkpoints" \
-       --eval-iters 10 \
+       --eval-iters 15 \
        --eval-batch-size 1 \
        --split 1. \
        --deepspeed_config test_config_bf16.json \

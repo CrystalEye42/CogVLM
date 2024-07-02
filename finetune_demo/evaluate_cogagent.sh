@@ -11,8 +11,8 @@ main_dir=$(dirname $script_dir)
 MODEL_TYPE="cogagent-chat"
 VERSION="chat"
 # Tips: max_length should be longer than 256, to accomodate low-resolution image tokens
-MODEL_ARGS="--from_pretrained ./checkpoints/merged_lora_cogagent/1 \
-    --max_length 400 \
+MODEL_ARGS="--from_pretrained /scratch/wang7776/test_finetune/checkpoints/testing_save-07-01-15-32/merged_lora_cogagent \
+    --max_length 1920 \
     --local_tokenizer lmsys/vicuna-7b-v1.5 \
     --version $VERSION"
 
@@ -20,8 +20,8 @@ OPTIONS_SAT="SAT_HOME=/scratch/wang7776/.sat_models"
 OPTIONS_NCCL="NCCL_DEBUG=info NCCL_IB_DISABLE=0 NCCL_NET_GDR_LEVEL=2 LOCAL_WORLD_SIZE=$NUM_GPUS_PER_WORKER"
 HOST_FILE_PATH="hostfile"
 
-train_data="./archive_split/train"
-test_data="./archive_split/test"
+train_data="/data/rsg/chemistry/wang7776/images/train"
+valid_data="/data/rsg/chemistry/wang7776/images/dev"
 
 gpt_options=" \
        --experiment-name finetune-$MODEL_TYPE \

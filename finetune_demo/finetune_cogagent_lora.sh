@@ -16,7 +16,7 @@ main_dir=$(dirname $script_dir)
 MODEL_TYPE="cogagent-chat"
 VERSION="chat"
 MODEL_ARGS="--from_pretrained $MODEL_TYPE \
-    --max_length 1920 \
+    --max_length 2048 \
     --lora_rank 64 \
     --use_lora \
     --local_tokenizer lmsys/vicuna-7b-v1.5 \
@@ -34,7 +34,7 @@ gpt_options=" \
        --experiment-name rxnscribe \
        --model-parallel-size ${MP_SIZE} \
        --mode finetune \
-       --train-iters 10000 \
+       --train-iters 15000 \
        --resume-dataloader \
        $MODEL_ARGS \
        --train-data ${train_data} \
@@ -44,10 +44,10 @@ gpt_options=" \
        --warmup .02 \
        --checkpoint-activations \
        --vit_checkpoint_activations \
-       --save-interval 2500 \
-       --eval-interval 500 \
+       --save-interval 5000 \
+       --eval-interval 1000 \
        --save "/scratch/wang7776/test_finetune/checkpoints" \
-       --eval-iters 15 \
+       --eval-iters 50 \
        --eval-batch-size 1 \
        --split 1. \
        --deepspeed_config test_config_bf16.json \

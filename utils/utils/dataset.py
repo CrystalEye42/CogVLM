@@ -3,7 +3,7 @@ import logging
 import random
 import logging
 from io import BytesIO
-from PIL import Image
+from PIL import Image, ImageDraw
 from torch.utils.data import Dataset
 from sat.helpers import print_rank0
 import glob
@@ -22,6 +22,7 @@ def find_all_files(path, suffix=".jpg"):
 class ItemDataset(Dataset):
     def __init__(self, image_processor, text_processor, args, data_dirs, cross_image_processor=None, **kwargs):
         super().__init__()
+        self.composite = 'train' in data_dirs  # hack
         self.data_dir = data_dirs
         self.data = self.load_data(data_dirs)
         self.image_processor, self.text_processor, self.cross_image_processor = image_processor, text_processor, cross_image_processor
@@ -73,6 +74,64 @@ class ItemDataset(Dataset):
         except Exception as e:
             print_rank0(e, level=logging.WARNING)
             return {}
+        if self.composite and len(str(data['label'])) < 1000 and random.random() < 0.7:
+            # print_rank0('old')
+            # print_rank0(data['label'])
+            while True:
+                data1 = self.data[int(random.random() * len(self.data))]
+                if len(str(data1['label'])) < 1000:
+                    break
+            try:
+                img1 = Image.open(os.path.join(self.data_dir, data1['file_name'])).convert('RGB')
+            except Exception as e:
+                print_rank0(e, level=logging.WARNING)
+                return {}
+            w, h = img.size
+            w1, h1 = img1.size
+            if (w + w1) * max(h, h1) > max(w, w1) * (h + h1):
+                new_img = Image.new('RGB', (w + w1, max(h, h1)))
+                if random.random() < 0.5:
+                    offsets = ((0, (max(h, h1) - h) // 2), (w, (max(h, h1) - h1) // 2))
+                else:
+                    offsets = ((w1, (max(h, h1) - h) // 2), (0, (max(h, h1) - h1) // 2))
+            else:
+                new_img = Image.new('RGB', (max(w, w1), h + h1))
+                if random.random() < 0.5:
+                    offsets = (((max(w, w1) - w) // 2, 0), ((max(w, w1) - w1) // 2, h))
+                else:
+                    offsets = (((max(w, w1) - w) // 2, h1), ((max(w, w1) - w1) // 2, 0))
+            new_img.paste(img, offsets[0])
+            new_img.paste(img1, offsets[1])
+            new_data = {'height': new_img.size[1], 'width': new_img.size[0], 'reactions': [], 'bboxes': []}
+            for rxn in data['reactions']:
+                new_data['reactions'].append(rxn)
+            for bb in data['bboxes']:
+                bb = bb['bbox']
+                new_data['bboxes'].append({'bbox': [bb[0] + offsets[0][0], bb[1] + offsets[0][1], bb[2], bb[3]]})
+            
+            for rxn in data1['reactions']:
+                new_rxn = {}
+                for k, v in rxn.items():
+                    new_rxn[k] = [i + len(new_data['bboxes']) for i in v]  # offset new indices by num original bboxes
+                new_data['reactions'].append(new_rxn)
+            for bb in data1['bboxes']:
+                bb = bb['bbox']
+                new_data['bboxes'].append({'bbox': [bb[0] + offsets[1][0], bb[1] + offsets[1][1], bb[2], bb[3]]})
+
+            self.create_gt(new_data)
+            img = new_img
+            data = new_data
+            """
+            print_rank0(f'new {index}')
+            print_rank0(data['label'])
+            img1 = ImageDraw.Draw(img)
+            for bb in data['bboxes']:
+                bbox = bb['bbox']
+                bbox = [bbox[0], bbox[1], bbox[2] + bbox[0], bbox[3] + bbox[1]]
+                img1.rectangle(bbox, outline='red')
+            img.save(f"/scratch/wang7776/test_finetune/{index}.jpg")
+            """
+
         img_dict = self.process_img(img)
         # text
         label = data['label']

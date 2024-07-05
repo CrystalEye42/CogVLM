@@ -34,7 +34,7 @@ gpt_options=" \
        --experiment-name rxnscribe \
        --model-parallel-size ${MP_SIZE} \
        --mode finetune \
-       --train-iters 15000 \
+       --train-iters 20000 \
        --resume-dataloader \
        $MODEL_ARGS \
        --train-data ${train_data} \

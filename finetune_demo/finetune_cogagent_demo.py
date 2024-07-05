@@ -181,41 +181,33 @@ def rxnscribe_eval(pred, label):
                     match_bb = bb
         return max_iou, match_bb
     
+    def get_hit(rxn, comp_set, keys):
+        for rxn1 in comp_set:
+            flag = True
+            for k, v in rxn.items():
+                for bbox in v:
+                    iou, bb = match_bbox(bbox, rxn1, keys[k])
+                    if iou < 0.5:
+                        flag = False
+            for k, v in rxn1.items():
+                for bbox in v:
+                    iou, bb = match_bbox(bbox, rxn, keys[k])
+                    if iou < 0.5:
+                        flag = False
+            if flag:
+                return 1
+        return 0
+
     soft_matched = {'prec': 0, 'rec': 0}
     hard_matched = {'prec': 0, 'rec': 0}
     soft_keys = {'reactants': ['reactants', 'conditions'], 'conditions': ['reactants', 'conditions'], 'products': ['products']}
+    hard_keys = {'reactants': ['reactants'], 'conditions': ['conditions'], 'products': ['products']}
     for rxn in pred:
-        # soft match
-        for k, v in rxn.items():
-            soft_flag = True
-            hard_flag = True
-            for bbox in v:
-                iou, bb = list(zip(*[match_bbox(bbox, rxn1, soft_keys[k]) for rxn1 in tar]))
-                if max(iou) < 0.5:
-                    soft_flag = False
-                iou, bb = list(zip(*[match_bbox(bbox, rxn1, [k]) for rxn1 in tar]))
-                if max(iou) < 0.5:
-                    hard_flag = False
-        if soft_flag:
-            soft_matched['prec'] += 1
-        if hard_flag:
-            hard_matched['prec'] += 1
+        soft_matched['prec'] += get_hit(rxn, tar, soft_keys)
+        hard_matched['prec'] += get_hit(rxn, tar, hard_keys)
     for rxn in tar:
-        # soft match
-        for k, v in rxn.items():
-            soft_flag = True
-            hard_flag = True
-            for bbox in v:
-                iou, bb = list(zip(*[match_bbox(bbox, rxn1, soft_keys[k]) for rxn1 in pred]))
-                if max(iou) < 0.5:
-                    soft_flag = False
-                iou, bb = list(zip(*[match_bbox(bbox, rxn1, [k]) for rxn1 in pred]))
-                if max(iou) < 0.5:
-                    hard_flag = False
-        if soft_flag:
-            soft_matched['rec'] += 1
-        if hard_flag:
-            hard_matched['rec'] += 1
+        soft_matched['rec'] += get_hit(rxn, pred, soft_keys)
+        hard_matched['rec'] += get_hit(rxn, pred, hard_keys)
     prec_total = len(pred)
     rec_total = len(tar)
     return soft_matched, hard_matched, prec_total, rec_total
@@ -262,15 +254,10 @@ def forward_step_eval(data_iterator, model, args, timers):
             score_dict['hard_gold_hits'] += hard_matched['rec']
             score_dict['pred_total'] += prec_total
             score_dict['gold_total'] += rec_total
+            if args.rank == 0:
+                print(score_dict, flush=True)
 
-        result = {'soft_precision': score_dict['soft_pred_hits'] / score_dict['pred_total'] , 
-                  'soft_recall': score_dict['soft_gold_hits'] / score_dict['gold_total'] , 
-                  'hard_precision': score_dict['hard_pred_hits'] / score_dict['pred_total'] , 
-                  'hard_recall': score_dict['hard_gold_hits'] / score_dict['gold_total'] , 
-                  }
-        result['soft_f1'] = 2 * result['soft_precision'] * result['soft_recall'] / (result['soft_precision'] + result['soft_recall'] + 0.00001)
-        result['hard_f1'] = 2 * result['hard_precision'] * result['hard_recall'] / (result['hard_precision'] + result['hard_recall'] + 0.00001)
-        return result
+        return score_dict
 
     # Get the batch.
     timers('batch generator').start()
@@ -299,6 +286,17 @@ def forward_step_eval(data_iterator, model, args, timers):
                                                     compute_metrics(
                                                         (outputs.cpu(), labels.cpu(), outputs.device)).items()}
 
+
+def handle_metrics(metrics_total):
+    metrics_total = {key: sum(value.split(1,0)) for key, value in metrics_total.items()}
+    result = {'soft_precision': metrics_total['soft_pred_hits'] / metrics_total['pred_total'] , 
+                'soft_recall': metrics_total['soft_gold_hits'] / metrics_total['gold_total'] , 
+                'hard_precision': metrics_total['hard_pred_hits'] / metrics_total['pred_total'] , 
+                'hard_recall': metrics_total['hard_gold_hits'] / metrics_total['gold_total'] , 
+                }
+    result['soft_f1'] = 2 * result['soft_precision'] * result['soft_recall'] / (result['soft_precision'] + result['soft_recall'] + 0.00001)
+    result['hard_f1'] = 2 * result['hard_precision'] * result['hard_recall'] / (result['hard_precision'] + result['hard_recall'] + 0.00001)
+    return result
 
 from torch.nn import CrossEntropyLoss
 def forward_step(data_iterator, model, args, timers):
@@ -372,7 +370,7 @@ if __name__ == '__main__':
     cross_image_processor = get_image_processor(args.cross_image_pix)
     text_processor = llama2_text_processor(tokenizer, args.max_length, args.image_length)
 
-    model = training_main(args, model_cls=model, forward_step_function=forward_step, create_dataset_function=partial(create_dataset_function, image_processor, text_processor, cross_image_processor), collate_fn=partial(data_collator, cross_image_processor=cross_image_processor), forward_step_eval=forward_step_eval)
+    model = training_main(args, model_cls=model, forward_step_function=forward_step, create_dataset_function=partial(create_dataset_function, image_processor, text_processor, cross_image_processor), collate_fn=partial(data_collator, cross_image_processor=cross_image_processor), forward_step_eval=forward_step_eval, handle_metrics_function=handle_metrics)
     if args.use_lora:
         model.get_mixin("lora").merge_lora()
         model.get_mixin("eva").vit_model.get_mixin("lora").merge_lora()

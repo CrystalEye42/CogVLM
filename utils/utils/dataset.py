@@ -53,12 +53,15 @@ class ItemDataset(Dataset):
             return [temp[0], temp[1], temp[2] + temp[0], temp[3] + temp[1]]
         bboxes = []
         for bbox in data['bboxes']:
-            bboxes.append(convert_bb(bbox['bbox']))
+            if bbox['category_id'] == 1:
+                bboxes.append(convert_bb(bbox['bbox']))
+            else:
+                bboxes.append(None)
         result = []
         for rxn in data['reactions']:
             curr = {}
             for k, v in rxn.items():
-                curr[k] = [[bboxes[i]] for i in v]
+                curr[k] = [[bboxes[i]] for i in v if bboxes[i] is not None]
             result.append(curr)
         data['label'] = result
         
@@ -106,8 +109,10 @@ class ItemDataset(Dataset):
             for rxn in data['reactions']:
                 new_data['reactions'].append(rxn)
             for bb in data['bboxes']:
+                idt = bb['category_id']
                 bb = bb['bbox']
-                new_data['bboxes'].append({'bbox': [bb[0] + offsets[0][0], bb[1] + offsets[0][1], bb[2], bb[3]]})
+                new_data['bboxes'].append({'bbox': [bb[0] + offsets[0][0], bb[1] + offsets[0][1], bb[2], bb[3]], 
+                                           'category_id': idt})
             
             for rxn in data1['reactions']:
                 new_rxn = {}
@@ -116,7 +121,8 @@ class ItemDataset(Dataset):
                 new_data['reactions'].append(new_rxn)
             for bb in data1['bboxes']:
                 bb = bb['bbox']
-                new_data['bboxes'].append({'bbox': [bb[0] + offsets[1][0], bb[1] + offsets[1][1], bb[2], bb[3]]})
+                new_data['bboxes'].append({'bbox': [bb[0] + offsets[1][0], bb[1] + offsets[1][1], bb[2], bb[3]], 
+                                           'category_id': idt})
 
             self.create_gt(new_data)
             img = new_img

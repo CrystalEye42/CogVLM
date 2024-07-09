@@ -12,7 +12,7 @@ MODEL_TYPE="cogagent-chat"
 VERSION="chat"
 # Tips: max_length should be longer than 256, to accomodate low-resolution image tokens
 MODEL_ARGS="--from_pretrained /scratch/wang7776/test_finetune/checkpoints/rxnscribe_finetune \
-    --max_length 1920 \
+    --max_length 2048 \
     --local_tokenizer lmsys/vicuna-7b-v1.5 \
     --version $VERSION"
 

@@ -247,7 +247,8 @@ def forward_step_eval(data_iterator, model, args, timers):
                 soft_matched, hard_matched, prec_total, rec_total = rxnscribe_eval(pred, label)
             except:
                 soft_matched, hard_matched = {'prec': 0, 'rec': 0}, {'prec': 0, 'rec': 0}
-                prec_total, rec_total = 10, 10  # arbitrary, weight large to penalize
+                rec_total = len(eval(label))
+                prec_total = rec_total
             score_dict['soft_pred_hits'] += soft_matched['prec']
             score_dict['soft_gold_hits'] += soft_matched['rec']
             score_dict['hard_pred_hits'] += hard_matched['prec']

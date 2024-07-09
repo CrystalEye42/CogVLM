@@ -17,7 +17,7 @@ MODEL_TYPE="cogagent-chat"
 VERSION="chat"
 MODEL_ARGS="--from_pretrained $MODEL_TYPE \
     --max_length 2048 \
-    --lora_rank 64 \
+    --lora_rank 96 \
     --use_lora \
     --local_tokenizer lmsys/vicuna-7b-v1.5 \
     --version $VERSION"
@@ -31,10 +31,10 @@ train_data="/data/rsg/chemistry/wang7776/images/train"
 valid_data="/data/rsg/chemistry/wang7776/images/dev"
 
 gpt_options=" \
-       --experiment-name rxnscribe \
+       --experiment-name rxnscribe_mol_only \
        --model-parallel-size ${MP_SIZE} \
        --mode finetune \
-       --train-iters 20000 \
+       --train-iters 25000 \
        --resume-dataloader \
        $MODEL_ARGS \
        --train-data ${train_data} \
@@ -47,7 +47,7 @@ gpt_options=" \
        --save-interval 5000 \
        --eval-interval 1000 \
        --save "/scratch/wang7776/test_finetune/checkpoints" \
-       --eval-iters 50 \
+       --eval-iters 30 \
        --eval-batch-size 1 \
        --split 1. \
        --deepspeed_config test_config_bf16.json \

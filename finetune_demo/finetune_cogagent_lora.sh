@@ -16,6 +16,7 @@ main_dir=$(dirname $script_dir)
 MODEL_TYPE="cogagent-chat"
 VERSION="chat"
 MODEL_ARGS="--from_pretrained $MODEL_TYPE \
+    --load /data/rsg/chemistry/wang7776/rxnscribe_mol_only \
     --max_length 2048 \
     --lora_rank 96 \
     --use_lora \
@@ -29,9 +30,10 @@ HOST_FILE_PATH="hostfile"
 
 train_data="/data/rsg/chemistry/wang7776/images/train"
 valid_data="/data/rsg/chemistry/wang7776/images/dev"
+test_data="/data/rsg/chemistry/wang7776/images/dev"
 
 gpt_options=" \
-       --experiment-name rxnscribe_mol_only \
+       --experiment-name rxnscribe_mol_only_2 \
        --model-parallel-size ${MP_SIZE} \
        --mode finetune \
        --train-iters 25000 \
@@ -39,15 +41,16 @@ gpt_options=" \
        $MODEL_ARGS \
        --train-data ${train_data} \
        --valid-data ${valid_data} \
+       --test-data ${test_data} \
        --distributed-backend nccl \
        --lr-decay-style cosine \
-       --warmup .02 \
+       --warmup .01 \
        --checkpoint-activations \
        --vit_checkpoint_activations \
-       --save-interval 5000 \
+       --save-interval 10000 \
        --eval-interval 1000 \
+       --eval-iters 10
        --save "/scratch/wang7776/test_finetune/checkpoints" \
-       --eval-iters 30 \
        --eval-batch-size 1 \
        --split 1. \
        --deepspeed_config test_config_bf16.json \
@@ -57,7 +60,7 @@ gpt_options=" \
 
               
 
-run_cmd="${OPTIONS_NCCL} ${OPTIONS_SAT} deepspeed --master_port 16667 --hostfile ${HOST_FILE_PATH} finetune_cogagent_demo.py ${gpt_options}"
+run_cmd="${OPTIONS_NCCL} ${OPTIONS_SAT} deepspeed --master_port 16666 --hostfile ${HOST_FILE_PATH} finetune_cogagent_demo.py ${gpt_options}"
 echo ${run_cmd}
 eval ${run_cmd}
 

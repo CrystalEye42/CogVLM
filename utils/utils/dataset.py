@@ -22,7 +22,7 @@ def find_all_files(path, suffix=".jpg"):
 class ItemDataset(Dataset):
     def __init__(self, image_processor, text_processor, args, data_dirs, cross_image_processor=None, **kwargs):
         super().__init__()
-        self.composite = 'train' in data_dirs  # hack
+        self.is_train = 'train' in data_dirs  # hack
         self.data_dir = data_dirs
         self.data = self.load_data(data_dirs)
         self.image_processor, self.text_processor, self.cross_image_processor = image_processor, text_processor, cross_image_processor
@@ -40,8 +40,18 @@ class ItemDataset(Dataset):
         fname = glob.glob(os.path.join(data_dir, '*.json'))[0]
         with open(fname, "r") as f:
             all_files = json.load(f)['images']
+        resample_rates = {
+            'single': 1,
+            'multiple': 2,
+            'tree': 4,
+            'graph': 10
+        }
+        extra_files = []
         for sample in all_files:
             self.create_gt(sample)
+            if self.is_train:
+                extra_files.extend([sample] * (resample_rates[sample['diagram_type']] - 1))
+        all_files.extend(extra_files)
         print_rank0(f"find {len(all_files)} samples in all...")
         return all_files
 
@@ -52,16 +62,21 @@ class ItemDataset(Dataset):
             temp = [int(t * 1000) for t in temp]
             return [temp[0], temp[1], temp[2] + temp[0], temp[3] + temp[1]]
         bboxes = []
+        is_mol = []
         for bbox in data['bboxes']:
-            if bbox['category_id'] == 1:
-                bboxes.append(convert_bb(bbox['bbox']))
-            else:
-                bboxes.append(None)
+            bboxes.append(convert_bb(bbox['bbox']))
+            is_mol.append(bbox['category_id'] == 1)
         result = []
         for rxn in data['reactions']:
             curr = {}
             for k, v in rxn.items():
-                curr[k] = [[bboxes[i]] for i in v if bboxes[i] is not None]
+                curr[k] = [[bboxes[i]] for i in v if is_mol[i]]
+            
+            if len(curr['reactants']) == 0:
+                curr['reactants'] = [[bboxes[i]] for i in v]
+            if len(curr['products']) == 0:
+                curr['products'] = [[bboxes[i]] for i in v]
+            
             result.append(curr)
         data['label'] = result
         
@@ -77,7 +92,7 @@ class ItemDataset(Dataset):
         except Exception as e:
             print_rank0(e, level=logging.WARNING)
             return {}
-        if self.composite and len(str(data['label'])) < 1000 and random.random() < 0.7:
+        if self.is_train and len(str(data['label'])) < 1000 and random.random() < 0.85:
             # print_rank0('old')
             # print_rank0(data['label'])
             while True:
@@ -91,14 +106,14 @@ class ItemDataset(Dataset):
                 return {}
             w, h = img.size
             w1, h1 = img1.size
-            if (w + w1) * max(h, h1) > max(w, w1) * (h + h1):
+            if False and (w + w1) * max(h, h1) > max(w, w1) * (h + h1):
                 new_img = Image.new('RGB', (w + w1, max(h, h1)))
                 if random.random() < 0.5:
                     offsets = ((0, (max(h, h1) - h) // 2), (w, (max(h, h1) - h1) // 2))
                 else:
                     offsets = ((w1, (max(h, h1) - h) // 2), (0, (max(h, h1) - h1) // 2))
             else:
-                new_img = Image.new('RGB', (max(w, w1), h + h1))
+                new_img = Image.new('RGB', (max(w, w1), h + h1), color=(255,255,255))
                 if random.random() < 0.5:
                     offsets = (((max(w, w1) - w) // 2, 0), ((max(w, w1) - w1) // 2, h))
                 else:
@@ -120,6 +135,7 @@ class ItemDataset(Dataset):
                     new_rxn[k] = [i + len(new_data['bboxes']) for i in v]  # offset new indices by num original bboxes
                 new_data['reactions'].append(new_rxn)
             for bb in data1['bboxes']:
+                idt = bb['category_id']
                 bb = bb['bbox']
                 new_data['bboxes'].append({'bbox': [bb[0] + offsets[1][0], bb[1] + offsets[1][1], bb[2], bb[3]], 
                                            'category_id': idt})
@@ -137,13 +153,46 @@ class ItemDataset(Dataset):
                 img1.rectangle(bbox, outline='red')
             img.save(f"/scratch/wang7776/test_finetune/{index}.jpg")
             """
-
+        # rotate
+        if self.is_train:
+            w, h = img.size
+            transforms = [
+                (lambda bb : [i for i in bb]),
+                (lambda bb : [bb[1], w - bb[0] - bb[2], bb[3], bb[2]]),
+                (lambda bb : [w - bb[0] - bb[2], h - bb[1] - bb[3], bb[2], bb[3]]),
+                (lambda bb : [h - bb[3] - bb[1], bb[0], bb[3], bb[2]])
+            ]
+            rotate = int(random.random() * 4)
+            if rotate > 0:
+                rotate_f = transforms[rotate]
+                img = img.rotate(rotate * 90, expand=1)
+                new_data = {'height': img.size[1], 'width': img.size[0], 'reactions': data['reactions'], 'bboxes': []}
+                for bbox in data['bboxes']:
+                    bb = bbox['bbox']
+                    new_data['bboxes'].append({'bbox': rotate_f(bb), 'category_id': bbox['category_id']})
+                self.create_gt(new_data)
+                data = new_data
+            
+            """
+            if rotate in [1, 2, 3]:
+                print_rank0(f'new {index}')
+                print_rank0(data['label'])
+                img1 = ImageDraw.Draw(img)
+                for bb in data['bboxes']:
+                    bbox = bb['bbox']
+                    bbox = [bbox[0], bbox[1], bbox[2] + bbox[0], bbox[3] + bbox[1]]
+                    try:
+                        img1.rectangle(bbox, outline='red')
+                    except:
+                        print("failed", bbox, bb['bbox'], "\nrotate", rotate, "idx", index, flush=True)
+                img.save(f"/scratch/wang7776/test_finetune/{index}.jpg")
+            """
         img_dict = self.process_img(img)
         # text
         label = data['label']
         #random.shuffle(label)
         label = str(label)
-        uni_key = label
+        uni_key = self.data[index]['file_name']
         text_dict = self.process_text(label, 
             "Describe all reactions in the form [{'reactants': [[[x1,y1,x2,y2]], ... ], 'conditions': [[[x1,y1,x2,y2]], ... ]}, 'products': [[[x1,y1,x2,y2]], ... ]}, ... ]")
         if text_dict is None:

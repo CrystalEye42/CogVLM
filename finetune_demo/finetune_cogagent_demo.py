@@ -235,7 +235,7 @@ def forward_step_eval(data_iterator, model, args, timers):
         }
         for pred, label in zip(decoded_preds, decoded_labels):
             if args.rank == 0:
-                print('pred', pred, 'label', label, flush=True)
+                print('qid', qid, '\npred', pred, '\nlabel', label, flush=True)
                 """
                 print_rank0('----------------------')
                 print_rank0(pred)

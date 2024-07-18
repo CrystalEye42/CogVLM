@@ -13,6 +13,8 @@ from functools import partial
 from utils.models import FineTuneTestCogAgentModel
 from utils.utils import llama2_text_processor, llama2_text_processor_inference, get_image_processor
 
+from PIL import Image, ImageDraw
+
 
 def data_collator(examples, cross_image_processor=None):
     def to_tensor(value):
@@ -211,7 +213,7 @@ def forward_step_eval(data_iterator, model, args, timers):
         }
         for pred, label in zip(decoded_preds, decoded_labels):
             if args.rank == 0:
-                print('pred', pred, 'label', label, flush=True)
+                print('qid', qid, '\npred', pred, '\nlabel', label, flush=True)
                 """
                 print_rank0('----------------------')
                 print_rank0(pred)
@@ -219,6 +221,13 @@ def forward_step_eval(data_iterator, model, args, timers):
                 print_rank0(label)
                 print_rank0('----------------------')
                 """
+            os.makedirs(args.save, exist_ok=True)
+            with open(os.path.join(args.save, f'eval{args.rank}.txt'), 'a') as f:
+                #print("saving to", os.path.join(args.save, f'eval{args.rank}.txt'), flush=True)
+                f.write(f'qid {qid}\npred {pred}\nlabel {label}\n')
+                f.write("------------\n")
+                #print("saved", os.path.join(args.save, f'eval{args.rank}.txt'), flush=True)
+
             try:
                 soft_matched, hard_matched, prec_total, rec_total = rxnscribe_eval(pred, label)
             except:

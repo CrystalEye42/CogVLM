@@ -11,7 +11,7 @@ main_dir=$(dirname $script_dir)
 MODEL_TYPE="cogagent-chat"
 VERSION="chat"
 # Tips: max_length should be longer than 256, to accomodate low-resolution image tokens
-MODEL_ARGS="--from_pretrained /scratch/wang7776/test_finetune/checkpoints/rxnscribe_finetune \
+MODEL_ARGS="--from_pretrained /scratch/wang7776/test_finetune/checkpoints/rxnscribe_mol_only-07-05-15-19/merged_lora_cogagent/ \
     --max_length 2048 \
     --local_tokenizer lmsys/vicuna-7b-v1.5 \
     --version $VERSION"
@@ -24,7 +24,7 @@ train_data="/data/rsg/chemistry/wang7776/images/train"
 test_data="/data/rsg/chemistry/wang7776/images/dev"
 
 gpt_options=" \
-       --experiment-name finetune-$MODEL_TYPE \
+       --experiment-name rxnscribe_mol_only_eval \
        --model-parallel-size ${MP_SIZE} \
        --mode finetune \
        --train-iters 0 \
@@ -38,7 +38,7 @@ gpt_options=" \
        --checkpoint-activations \
        --save-interval 200 \
        --eval-interval 200 \
-       --save "./checkpoints" \
+       --save "/scratch/wang7776/test_finetune/checkpoints" \
        --strict-eval \
        --eval-batch-size 1 \
        --split 1. \

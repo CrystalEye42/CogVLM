@@ -373,6 +373,8 @@ if __name__ == '__main__':
 
     model = training_main(args, model_cls=model, forward_step_function=forward_step, create_dataset_function=partial(create_dataset_function, image_processor, text_processor, cross_image_processor), collate_fn=partial(data_collator, cross_image_processor=cross_image_processor), forward_step_eval=forward_step_eval, handle_metrics_function=handle_metrics)
     if args.use_lora:
+        args.deepspeed = None
+        args.mode = 'inference'
         model.get_mixin("lora").merge_lora()
         model.get_mixin("eva").vit_model.get_mixin("lora").merge_lora()
         args.use_lora = False

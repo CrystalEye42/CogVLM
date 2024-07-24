@@ -4,11 +4,17 @@ import random
 import logging
 from io import BytesIO
 from PIL import Image, ImageDraw
+import cv2
 from torch.utils.data import Dataset
 from sat.helpers import print_rank0
 import glob
 import json
 import torch
+import sys
+sys.path.append("..")
+from MolScribe.dataset import TrainDataset, AuxTrainDataset
+from MolScribe.tokenizer import get_tokenizer
+import pandas as pd
 
 def find_all_files(path, suffix=".jpg"):
     target_files = []
@@ -18,6 +24,81 @@ def find_all_files(path, suffix=".jpg"):
                 target_files.append(os.path.join(cur_dir, f))
     print_rank0(f'find {len(target_files)} files...')
     return target_files
+
+def get_chemdraw_data(args):
+    train_df, valid_df, test_df, aux_df = None, None, None, None
+    if args.do_train:
+        train_files = args.train_file.split(',')
+        train_df = pd.concat([pd.read_csv(os.path.join(args.data_path, file)) for file in train_files])
+        print_rank0(f'train.shape: {train_df.shape}')
+        if args.aux_file:
+            aux_df = pd.read_csv(os.path.join(args.data_path, args.aux_file))
+            print_rank0(f'aux.shape: {aux_df.shape}')
+    if args.do_train or args.do_valid:
+        valid_df = pd.read_csv(os.path.join(args.data_path, args.valid_file))
+        valid_df.attrs['file'] = args.valid_file
+        print_rank0(f'valid.shape: {valid_df.shape}')
+    if args.do_test:
+        test_files = args.test_file.split(',')
+        test_df = [pd.read_csv(os.path.join(args.data_path, file)) for file in test_files]
+        for file, df in zip(test_files, test_df):
+            df.attrs['file'] = file
+            print_rank0(file + f' test.shape: {df.shape}')
+    tokenizer = get_tokenizer(args)
+    return train_df, valid_df, test_df, aux_df, tokenizer
+
+class MolScribeDataset(Dataset):
+    def __init__(self, image_processor, text_processor, args, data_dirs, cross_image_processor=None, **kwargs):
+        super().__init__()
+        self.is_train = 'train' in data_dirs  # hack
+        self.is_valid = 'valid' in data_dirs
+        train_df, valid_df, test_df, aux_df, tokenizer = get_chemdraw_data(args)
+        if self.is_train:
+            args.do_train = True
+            self.dataset = AuxTrainDataset(args, train_df, aux_df, tokenizer)
+        elif self.is_valid:
+            args.do_valid = True
+            self.dataset = TrainDataset(args, valid_df, tokenizer, split='valid')
+        else:
+            args.do_test = True
+            self.dataset = TrainDataset(args, test_df, tokenizer, split='valid')
+        
+        self.image_processor, self.text_processor, self.cross_image_processor = image_processor, text_processor, cross_image_processor
+
+    def process_img(self, img):
+        img_dict = {'vision': self.image_processor(img)}
+        if self.cross_image_processor:
+            img_dict.update({'cross': self.cross_image_processor(img)})
+        return img_dict
+    
+    def process_text(self, answer, prompt):
+        return self.text_processor(answer, prompt)
+    
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, index):
+        idx, image, ref = self.dataset[index]
+        #print("image type", type(image), flush=True)
+        img = Image.fromarray(image)
+        img_dict = self.process_img(img)
+        # text
+        # print('ref', ref, flush=True)
+        #random.shuffle(label)
+        label = ref['chartok_coords']
+        edges = ref['edges']
+        bonds = [[i, j, int(edges[i,j])]for i, j in torch.nonzero(edges).tolist()]
+        label += " " + str(bonds)
+        print_rank0(label)
+        uni_key = idx
+        text_dict = self.process_text(label, 
+            "Describe the molecule in the form: a x y [ATOM] ... [[i, j, b], ... ]")
+        if text_dict is None:
+            print_rank0(f"Process text failed. Please check the max_target_length & max_source_length.\n The data is {data}", level=logging.WARNING)
+            return {}
+        # other attr
+        ret = {**img_dict, **text_dict, "question_id": uni_key}
+        return ret
 
 class ItemDataset(Dataset):
     def __init__(self, image_processor, text_processor, args, data_dirs, cross_image_processor=None, **kwargs):

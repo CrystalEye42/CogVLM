@@ -54,8 +54,8 @@ def get_transforms(input_size, augment=True, rotate=True, debug=False):
         std = [0.229, 0.224, 0.225]
         trans_list += [
             A.ToGray(p=1),
-            A.Normalize(mean=mean, std=std),
-            ToTensorV2(),
+            #A.Normalize(mean=mean, std=std),
+            #ToTensorV2(),
         ]
     return A.Compose(trans_list, keypoint_params=A.KeypointParams(format='xy', remove_invisible=False))
 
@@ -371,10 +371,11 @@ class TrainDataset(Dataset):
             if renormalize:
                 coords = normalize_nodes(coords, flip_y=False)
             else:
-                _, height, width = image.shape
+                height, width, channels = image.shape
+                assert(channels <= 4)
                 coords[:, 0] = coords[:, 0] / width
                 coords[:, 1] = coords[:, 1] / height
-            coords = np.array(coords).clip(0, 1)
+            #coords = np.array(coords).clip(0, 1)
             return image, coords
         return image
 
@@ -382,7 +383,9 @@ class TrainDataset(Dataset):
         try:
             return self.getitem(idx)
         except Exception as e:
-            with open(os.path.join(self.args.save_path, f'error_dataset_{int(time.time())}.log'), 'w') as f:
+            if not os.path.exists(self.args.save):
+                os.makedirs(self.args.save)
+            with open(os.path.join(self.args.save, f'error_dataset_{int(time.time())}.log'), 'w') as f:
                 f.write(str(e))
             raise e
 
@@ -392,17 +395,19 @@ class TrainDataset(Dataset):
             begin = time.time()
             image, smiles, graph, success = generate_indigo_image(
                 self.smiles[idx], mol_augment=self.args.mol_augment, default_option=self.args.default_option,
-                shuffle_nodes=self.args.shuffle_nodes, pseudo_coords=self.pseudo_coords,
+                #shuffle_nodes=self.args.shuffle_nodes,
+                pseudo_coords=self.pseudo_coords,
                 include_condensed=self.args.include_condensed)
             # raw_image = image
             end = time.time()
-            if idx < 30 and self.args.save_image:
-                path = os.path.join(self.args.save_path, 'images')
+            if idx < 30 and False: # self.args.save_image:
+                path = os.path.join(self.args.save, 'images')
                 os.makedirs(path, exist_ok=True)
                 cv2.imwrite(os.path.join(path, f'{idx}.png'), image)
             if not success:
                 return idx, None, {}
             image, coords = self.image_transform(image, graph['coords'], renormalize=self.pseudo_coords)
+            #print(f"dynamic indigo\n{coords}\n***********************\n{graph['coords']}\n*************", flush=True)
             graph['coords'] = coords
             ref['time'] = end - begin
             if 'atomtok' in self.formats:
@@ -415,7 +420,7 @@ class TrainDataset(Dataset):
                 self._process_atomtok_coords(idx, ref, smiles, graph['coords'], graph['edges'],
                                              mask_ratio=self.args.mask_ratio)
             if 'chartok_coords' in self.formats:
-                self._process_chartok_coords(idx, ref, smiles, graph['coords'], graph['edges'],
+                self._process_chartok_coords_string(idx, ref, smiles, graph['coords'], graph['edges'],
                                              mask_ratio=self.args.mask_ratio)
             return idx, image, ref
         else:
@@ -448,10 +453,10 @@ class TrainDataset(Dataset):
                         self._process_atomtok_coords(idx, ref, smiles, mask_ratio=1)
                 if 'chartok_coords' in self.formats:
                     if coords is not None:
-                        self._process_chartok_coords(idx, ref, smiles, coords, mask_ratio=0)
+                        self._process_chartok_coords_string(idx, ref, smiles, coords, mask_ratio=0)
                     else:
-                        self._process_chartok_coords(idx, ref, smiles, mask_ratio=1)
-            if self.args.predict_coords and ('atomtok_coords' in self.formats or 'chartok_coords' in self.formats):
+                        self._process_chartok_coords_string(idx, ref, smiles, mask_ratio=1)
+            if False: #self.args.predict_coords and ('atomtok_coords' in self.formats or 'chartok_coords' in self.formats):
                 smiles = self.smiles[idx]
                 if 'atomtok_coords' in self.formats:
                     self._process_atomtok_coords(idx, ref, smiles, mask_ratio=1)
@@ -499,6 +504,39 @@ class TrainDataset(Dataset):
             smiles = ""
         label, indices = tokenizer.smiles_to_sequence(smiles, coords, mask_ratio=mask_ratio)
         ref['chartok_coords'] = torch.LongTensor(label[:max_len])
+        indices = [i for i in indices if i < max_len]
+        ref['atom_indices'] = torch.LongTensor(indices)
+        if tokenizer.continuous_coords:
+            if coords is not None:
+                ref['coords'] = torch.tensor(coords)
+            else:
+                ref['coords'] = torch.ones(len(indices), 2) * -1.
+        if edges is not None:
+            ref['edges'] = torch.tensor(edges)[:len(indices), :len(indices)]
+        else:
+            if 'edges' in self.df.columns:
+                edge_list = eval(self.df.loc[idx, 'edges'])
+                n = len(indices)
+                edges = torch.zeros((n, n), dtype=torch.long)
+                for u, v, t in edge_list:
+                    if u < n and v < n:
+                        if t <= 4:
+                            edges[u, v] = t
+                            edges[v, u] = t
+                        else:
+                            edges[u, v] = t
+                            edges[v, u] = 11 - t
+                ref['edges'] = edges
+            else:
+                ref['edges'] = torch.ones(len(indices), len(indices), dtype=torch.long) * (-100)
+        
+    def _process_chartok_coords_string(self, idx, ref, smiles, coords=None, edges=None, mask_ratio=0):
+        max_len = FORMAT_INFO['chartok_coords']['max_len']
+        tokenizer = self.tokenizer['chartok_coords']
+        if smiles is None or type(smiles) is not str:
+            smiles = ""
+        label, indices = tokenizer.smiles_to_string_sequence(smiles, coords, mask_ratio=mask_ratio)
+        ref['chartok_coords'] = label #torch.LongTensor(label[:max_len])
         indices = [i for i in indices if i < max_len]
         ref['atom_indices'] = torch.LongTensor(indices)
         if tokenizer.continuous_coords:

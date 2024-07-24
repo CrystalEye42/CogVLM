@@ -329,9 +329,9 @@ def forward_step(data_iterator, model, args, timers):
 
     return loss, {'loss': loss}
 
-from utils.utils import ItemDataset
+from utils.utils import ItemDataset, MolScribeDataset
 def create_dataset_function(image_processor, text_processor, cross_image_processor, path, args):
-    dataset = ItemDataset(image_processor, text_processor, args, path, cross_image_processor=cross_image_processor)
+    dataset = MolScribeDataset(image_processor, text_processor, args, path, cross_image_processor=cross_image_processor)
     return dataset
 
 from sat.model.finetune.lora2 import LoraMixin
@@ -345,10 +345,37 @@ if __name__ == '__main__':
     py_parser.add_argument("--from_pretrained", type=str, default="cogagent-chat", help='pretrained ckpt')
     py_parser.add_argument("--local_tokenizer", type=str, default="lmsys/vicuna-7b-v1.5", help='tokenizer path')
     py_parser.add_argument("--vit_checkpoint_activations", action='store_true')
+
+    # MolScribe
+    py_parser.add_argument('--do_train', action='store_true')
+    py_parser.add_argument('--do_test', action='store_true')
+    py_parser.add_argument('--do_valid', action='store_true')
+    py_parser.add_argument('--data_path', type=str, default=None)
+    py_parser.add_argument('--train_file', type=str, default=None)
+    py_parser.add_argument('--valid_file', type=str, default=None)
+    py_parser.add_argument('--test_file', type=str, default=None)
+    py_parser.add_argument('--aux_file', type=str, default=None)
+    py_parser.add_argument('--coords_file', type=str, default=None)
+    py_parser.add_argument('--vocab_file', type=str, default=None)
+    py_parser.add_argument('--dynamic_indigo', action='store_true')
+    py_parser.add_argument('--default_option', action='store_true')
+    py_parser.add_argument('--pseudo_coords', action='store_true')
+    py_parser.add_argument('--include_condensed', action='store_true')
+    py_parser.add_argument('--formats', type=str, default=None)
+    py_parser.add_argument('--input_size', type=int, default=1120)
+    py_parser.add_argument('--multiscale', action='store_true')
+    py_parser.add_argument('--augment', action='store_true')
+    py_parser.add_argument('--mol_augment', action='store_true')
+    py_parser.add_argument('--coord_bins', type=int, default=100)
+    py_parser.add_argument('--sep_xy', action='store_true')
+    py_parser.add_argument('--mask_ratio', type=float, default=0)
+    py_parser.add_argument('--continuous_coords', action='store_true')
+
     py_parser = FineTuneTrainCogAgentModel.add_model_specific_args(py_parser)
     known, args_list = py_parser.parse_known_args()
     args = get_args(args_list)
     args = argparse.Namespace(**vars(args), **vars(known))
+    args.formats = args.formats.split(',')
     #if args.use_qlora:
     #    args.device = 'cpu'
 

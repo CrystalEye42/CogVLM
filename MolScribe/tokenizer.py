@@ -449,6 +449,36 @@ class CharTokenizer(NodeTokenizer):
                 indices.append(len(labels) - 1)
         labels.append(EOS_ID)
         return labels, indices
+    
+    def smiles_to_string_sequence(self, smiles, coords=None, mask_ratio=0, atom_only=False):
+        tokens = atomwise_tokenizer(smiles)
+        labels = []
+        indices = []
+        atom_idx = -1
+        for token in tokens:
+            if atom_only and not self.is_atom_token(token):
+                continue
+            labels.append(token)
+            if self.is_atom_token(token):
+                atom_idx += 1
+                if not self.continuous_coords:
+                    if coords is not None:
+                        if atom_idx < len(coords):
+                            x, y = coords[atom_idx]
+                            assert 0 <= x <= 1
+                            assert 0 <= y <= 1
+                        else:
+                            x = random.random()
+                            y = random.random()
+                        x = str(int(x * 1000))
+                        y = str(int(y * 1000))
+                        labels.append(x)
+                        labels.append(y)
+                        labels.append("[ATOM]")
+                        indices.append(len(labels)-1)
+        return " ".join(labels), indices
+    
+    
 
     def sequence_to_smiles(self, sequence):
         has_coords = not self.continuous_coords

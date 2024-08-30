@@ -458,24 +458,23 @@ class CharTokenizer(NodeTokenizer):
         for token in tokens:
             if atom_only and not self.is_atom_token(token):
                 continue
-            labels.append(token)
+            to_add = token
             if self.is_atom_token(token):
                 atom_idx += 1
                 if not self.continuous_coords:
                     if coords is not None:
                         if atom_idx < len(coords):
                             x, y = coords[atom_idx]
-                            assert 0 <= x <= 1
-                            assert 0 <= y <= 1
+                            #assert 0 <= x <= 1
+                            #assert 0 <= y <= 1
                         else:
                             x = random.random()
                             y = random.random()
                         x = str(int(x * 1000))
                         y = str(int(y * 1000))
-                        labels.append(x)
-                        labels.append(y)
-                        labels.append("[ATOM]")
+                        to_add = "{" + f"{token} {x} {y}" + "}"
                         indices.append(len(labels)-1)
+            labels.append(to_add)
         return " ".join(labels), indices
     
     

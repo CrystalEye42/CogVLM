@@ -16,7 +16,7 @@ main_dir=$(dirname $script_dir)
 MODEL_TYPE="cogagent-chat"
 VERSION="chat"
 MODEL_ARGS="--from_pretrained $MODEL_TYPE \
-    --max_length 2048 \
+    --max_length 2304 \
     --lora_rank 96 \
     --use_lora \
     --local_tokenizer lmsys/vicuna-7b-v1.5 \
@@ -47,7 +47,7 @@ gpt_options=" \
        --vit_checkpoint_activations \
        --save-interval 12500 \
        --eval-interval 1000 \
-       --eval-iters 10
+       --eval-iters 20
        --save "/scratch/wang7776/test_finetune/checkpoints" \
        --eval-batch-size 1 \
        --split 1. \

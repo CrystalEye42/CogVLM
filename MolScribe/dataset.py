@@ -425,6 +425,7 @@ class TrainDataset(Dataset):
             return idx, image, ref
         else:
             file_path = self.file_paths[idx]
+            ref['smiles'] = self.smiles[idx]
             image = cv2.imread(file_path)
             if image is None:
                 image = np.array([[[255., 255., 255.]] * 10] * 10).astype(np.float32)

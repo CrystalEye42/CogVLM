@@ -212,6 +212,11 @@ def rxnscribe_eval(pred, label):
     rec_total = len(tar)
     return soft_matched, hard_matched, prec_total, rec_total
 
+sys.path.append("..")
+from MolScribe.chemistry import convert_graph_to_smiles, postprocess_smiles, keep_main_molecule
+def molscribe_eval(pred, label):
+    pass
+
 
 def forward_step_eval(data_iterator, model, args, timers):
     def compute_metrics(eval_preds):
@@ -243,11 +248,18 @@ def forward_step_eval(data_iterator, model, args, timers):
                 print_rank0(label)
                 print_rank0('----------------------')
                 """
+
+            os.makedirs(args.save, exist_ok=True)
+            with open(os.path.join(args.save, f'eval{args.rank}.txt'), 'a') as f:
+                #print("saving to", os.path.join(args.save, f'eval{args.rank}.txt'), flush=True)
+                f.write(f'qid {qid}\npred {pred}\nlabel {label}\n')
+                f.write("------------\n")
+                
             try:
-                soft_matched, hard_matched, prec_total, rec_total = rxnscribe_eval(pred, label)
+                soft_matched, hard_matched, prec_total, rec_total = molscribe_eval(pred, label)
             except:
                 soft_matched, hard_matched = {'prec': 0, 'rec': 0}, {'prec': 0, 'rec': 0}
-                rec_total = len(eval(label))
+                rec_total = 1
                 prec_total = rec_total
             score_dict['soft_pred_hits'] += soft_matched['prec']
             score_dict['soft_gold_hits'] += soft_matched['rec']

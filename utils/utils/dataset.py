@@ -63,6 +63,11 @@ class MolScribeDataset(Dataset):
             args.do_test = True
             self.dataset = TrainDataset(args, test_df, tokenizer, split='valid')
         
+        self.order = [i for i in range(len(self.dataset))]
+        random.shuffle(self.order)
+        self.print_num = 10
+        self.args = args
+        
         self.image_processor, self.text_processor, self.cross_image_processor = image_processor, text_processor, cross_image_processor
 
     def process_img(self, img):
@@ -78,23 +83,48 @@ class MolScribeDataset(Dataset):
         return len(self.dataset)
 
     def __getitem__(self, index):
-        idx, image, ref = self.dataset[index]
+        while True:
+            try:
+                return self.getitem(index)
+            except:
+                index += 1
+
+
+    def getitem(self, index):
+        image = None
+        index -= 1
+        while image is None:
+            index += 1
+            idx, image, ref = self.dataset[self.order[index]]
         #print("image type", type(image), flush=True)
         img = Image.fromarray(image)
         img_dict = self.process_img(img)
         # text
         # print('ref', ref, flush=True)
         #random.shuffle(label)
-        label = ref['chartok_coords']
-        edges = ref['edges']
-        bonds = [[i, j, int(edges[i,j])]for i, j in torch.nonzero(edges).tolist()]
-        label += " " + str(bonds)
-        print_rank0(label)
+        if 'chartok_coords' in ref:
+            label = ref['chartok_coords']
+            edges = ref['edges']
+            bonds = [[] for _ in range(5)]
+            names = ["\nSingle Bonds: ", "\nDouble Bonds: ", "\nTriple Bonds: ", "\nAromatic: ", "\nWedge: "]
+            for i, j in torch.nonzero(edges).tolist():
+                b = int(edges[i,j])
+                if (i < j and b <= 5) or b == 5: 
+                    bonds[b - 1].append(f"({i} {j})")
+            for ij, bond_list in enumerate(bonds):
+                if len(bond_list) == 0:
+                    continue
+                label += names[ij] + " ".join(bond_list)
+        else: 
+            label = ref['smiles']
+        if self.print_num > 0 and self.args.rank == 0:
+            print_rank0(label)
+            self.print_num -= 1
         uni_key = idx
         text_dict = self.process_text(label, 
-            "Describe the molecule in the form: a x y [ATOM] ... [[i, j, b], ... ]")
+            "Describe the molecule in the form: {a x y} ... i: (j, b), ...")
         if text_dict is None:
-            print_rank0(f"Process text failed. Please check the max_target_length & max_source_length.\n The data is {data}", level=logging.WARNING)
+            print_rank0(f"Process text failed. Please check the max_target_length & max_source_length.\n The data is {ref}", level=logging.WARNING)
             return {}
         # other attr
         ret = {**img_dict, **text_dict, "question_id": uni_key}
